@@ -1,4 +1,5 @@
 using System;
+using System.Xml.Serialization;
 
 namespace VirtualGarage.Models
 {
@@ -29,6 +30,7 @@ namespace VirtualGarage.Models
         public string BarricadeBlob;
 
         /// <summary>Human-readable vehicle name for listing (resolved from the asset, not persisted).</summary>
+        [XmlIgnore]
         public string DisplayName;
     }
 }

@@ -11,7 +11,7 @@ namespace VirtualGarage.Database
     /// (simple and robust under Mono). All calls run on the main thread from command handlers;
     /// queries are indexed and tiny, so the blocking time is negligible.
     /// </summary>
-    public sealed class GarageDatabase
+    public sealed class GarageDatabase : IGarageStore
     {
         private readonly VirtualGarageConfiguration _cfg;
 

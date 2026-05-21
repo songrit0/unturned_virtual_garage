@@ -16,7 +16,7 @@ namespace VirtualGarage
     public sealed class VirtualGarage : RocketPlugin<VirtualGarageConfiguration>
     {
         public static VirtualGarage Instance { get; private set; }
-        public GarageDatabase Database { get; private set; }
+        public IGarageStore Store { get; private set; }
         public VirtualGarageConfiguration Conf => Configuration.Instance;
 
         public enum StoreOutcome { Ok, NameExists, LimitReached, AssetMissing, DbError }
@@ -40,11 +40,35 @@ namespace VirtualGarage
         protected override void Load()
         {
             Instance = this;
-            Database = new GarageDatabase(Conf);
-            if (Database.Initialize())
-                Logger.Log("VirtualGarage loaded. Database OK (table '" + Conf.TableName + "').");
+
+            string mode = (Conf.StorageMode ?? "AUTO").Trim().ToUpperInvariant();
+
+            if (mode == "FILE")
+            {
+                Store = new GarageFileStore(Directory);
+                Store.Initialize();
+                Logger.Log("VirtualGarage loaded. Storage = FILE (" + Conf.TableName + ").");
+                return;
+            }
+
+            GarageDatabase db = new GarageDatabase(Conf);
+            if (db.Initialize())
+            {
+                Store = db;
+                Logger.Log("VirtualGarage loaded. Storage = MySQL OK (table '" + Conf.TableName + "').");
+            }
+            else if (mode == "AUTO")
+            {
+                Store = new GarageFileStore(Directory);
+                Store.Initialize();
+                Logger.LogWarning("VirtualGarage: MySQL unavailable - falling back to FILE storage (VirtualGarage.data.xml).");
+            }
             else
-                Logger.LogError("VirtualGarage loaded BUT database init failed - check the MySQL settings in the config.");
+            {
+                // Explicit MYSQL mode but it failed; keep the DB store so commands report a DB error.
+                Store = db;
+                Logger.LogError("VirtualGarage loaded BUT MySQL init failed - check the database settings (StorageMode=MYSQL).");
+            }
         }
 
         protected override void Unload()
@@ -52,7 +76,7 @@ namespace VirtualGarage
             _channels.Clear();
             _channelScratch.Clear();
             Instance = null;
-            Database = null;
+            Store = null;
             Logger.Log("VirtualGarage unloaded.");
         }
 
@@ -116,12 +140,12 @@ namespace VirtualGarage
             // Fail fast on the cheap checks before making the player wait.
             try
             {
-                if (Database.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
+                if (Store.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
                 {
                     Err(caller, string.Format(Conf.MsgLimitReached, Conf.MaxVehiclesPerPlayer));
                     return;
                 }
-                if (Database.Exists(ownerId, name))
+                if (Store.Exists(ownerId, name))
                 {
                     Err(caller, string.Format(Conf.MsgNameExists, name));
                     return;
@@ -235,13 +259,13 @@ namespace VirtualGarage
         {
             try
             {
-                if (Database.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
+                if (Store.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
                     return StoreOutcome.LimitReached;
-                if (Database.Exists(ownerId, name))
+                if (Store.Exists(ownerId, name))
                     return StoreOutcome.NameExists;
 
                 StoredVehicle sv = Capture(ownerId, name, vehicle);
-                Database.Add(sv);
+                Store.Add(sv);
 
                 // Empty the trunk + mounted safes/lockers so their items don't spill on the ground when
                 // the vehicle is destroyed (everything is already saved and returns on retrieve).
@@ -268,9 +292,9 @@ namespace VirtualGarage
                 VehicleAsset asset = Assets.find(EAssetType.VEHICLE, vehicleId) as VehicleAsset;
                 if (asset == null)
                     return StoreOutcome.AssetMissing;
-                if (Database.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
+                if (Store.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
                     return StoreOutcome.LimitReached;
-                if (Database.Exists(ownerId, name))
+                if (Store.Exists(ownerId, name))
                     return StoreOutcome.NameExists;
 
                 StoredVehicle sv = new StoredVehicle
@@ -287,7 +311,7 @@ namespace VirtualGarage
                     TireMask = 255,
                     Locked = false
                 };
-                Database.Add(sv);
+                Store.Add(sv);
                 return StoreOutcome.Ok;
             }
             catch (Exception ex)
@@ -301,7 +325,7 @@ namespace VirtualGarage
         {
             try
             {
-                StoredVehicle sv = Database.Get(ownerId, name);
+                StoredVehicle sv = Store.Get(ownerId, name);
                 if (sv == null)
                     return RetrieveOutcome.NotFound;
 
@@ -309,7 +333,7 @@ namespace VirtualGarage
                 if (vehicle == null)
                     return RetrieveOutcome.AssetMissing;
 
-                Database.Delete(ownerId, name);
+                Store.Delete(ownerId, name);
                 return RetrieveOutcome.Ok;
             }
             catch (Exception ex)
@@ -321,7 +345,7 @@ namespace VirtualGarage
 
         public List<StoredVehicle> ListVehicles(ulong ownerId)
         {
-            List<StoredVehicle> rows = Database.List(ownerId);
+            List<StoredVehicle> rows = Store.List(ownerId);
             foreach (StoredVehicle sv in rows)
                 sv.DisplayName = ResolveDisplayName(sv);
             return rows;
@@ -329,7 +353,7 @@ namespace VirtualGarage
 
         public bool DeleteVehicle(ulong ownerId, string name)
         {
-            return Database.Delete(ownerId, name);
+            return Store.Delete(ownerId, name);
         }
 
         // ----------------------------------------------------------------

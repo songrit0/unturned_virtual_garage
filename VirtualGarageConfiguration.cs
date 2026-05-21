@@ -20,6 +20,15 @@ namespace VirtualGarage
     /// </summary>
     public sealed class VirtualGarageConfiguration : IRocketPluginConfiguration
     {
+        // --- Storage backend ---
+        /// <summary>
+        /// Where garage data is stored:
+        ///   "AUTO"  - try MySQL; if it can't connect, fall back to a local XML file (default).
+        ///   "MYSQL" - MySQL/MariaDB only.
+        ///   "FILE"  - local XML file only (no SQL needed).
+        /// </summary>
+        public string StorageMode;
+
         // --- MySQL / MariaDB connection ---
         public string DatabaseHost;
         public ushort DatabasePort;
@@ -89,6 +98,7 @@ namespace VirtualGarage
 
         public void LoadDefaults()
         {
+            StorageMode = "AUTO";
             DatabaseHost = "127.0.0.1";
             DatabasePort = 3306;
             DatabaseName = "unturned";
