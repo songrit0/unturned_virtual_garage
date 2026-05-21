@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>VirtualGarage</AssemblyName>
+    <RootNamespace>VirtualGarage</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <!-- Adjust these paths if your Unturned install lives elsewhere. -->
+  <PropertyGroup>
+    <UnturnedManaged>D:\SteamLibrary\steamapps\common\Unturned\Unturned_Data\Managed</UnturnedManaged>
+    <RocketDir>D:\SteamLibrary\steamapps\common\Unturned\Extras\Rocket.Unturned</RocketDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Unturned engine -->
+    <Reference Include="Assembly-CSharp"><HintPath>$(UnturnedManaged)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(UnturnedManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnturnedManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(UnturnedManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="com.rlabrecque.steamworks.net"><HintPath>$(UnturnedManaged)\com.rlabrecque.steamworks.net.dll</HintPath><Private>false</Private></Reference>
+
+    <!-- RocketMod -->
+    <Reference Include="Rocket.API"><HintPath>$(RocketDir)\Rocket.API.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Rocket.Core"><HintPath>$(RocketDir)\Rocket.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Rocket.Unturned"><HintPath>$(RocketDir)\Rocket.Unturned.dll</HintPath><Private>false</Private></Reference>
+
+    <!-- MySQL / MariaDB connector (ship this DLL with the plugin) -->
+    <Reference Include="MySql.Data"><HintPath>libs\MySql.Data.dll</HintPath><Private>true</Private></Reference>
+  </ItemGroup>
+
+</Project>

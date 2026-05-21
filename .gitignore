@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Third-party connector (provided by the server / NuGet — not redistributed)
+libs/
+dist/MySql.Data.dll
+
+# Rocket runtime files (generated on the server, not source)
+*.configuration.xml
+*.translation.xml

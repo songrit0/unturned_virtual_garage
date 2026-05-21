@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Virtual Garage plugin metadata.
+  RocketMod loads the compiled VirtualGarage.dll and auto-generates
+  VirtualGarage.configuration.xml from VirtualGarageConfiguration.cs on first run.
+  Requires MySql.Data.dll (shipped in this folder / placed in Rocket/Libraries).
+-->
+<Plugin name="VirtualGarage">
+  <Version>1.0.0</Version>
+  <Author>imaximum.tech</Author>
+  <Description>Store and retrieve vehicles (full state + trunk + mounted decorations/safes) via MySQL/MariaDB.</Description>
+  <Target>
+    <Unturned>3.26.3.2</Unturned>
+    <RocketMod>4.9.3.18</RocketMod>
+  </Target>
+  <Commands>
+    <Command name="gadd" permission="gadd">Store the vehicle you are looking at</Command>
+    <Command name="gretrieve" permission="gretrieve">Take a vehicle out of the garage</Command>
+    <Command name="garage" permission="garage">List vehicles in your garage</Command>
+    <Command name="garagedelete" permission="garagedelete">Delete a vehicle without spawning it</Command>
+    <Command name="gadminadd" permission="gadminadd">Admin: store looked-at vehicle into a player's garage</Command>
+    <Command name="gadmingive" permission="gadmingive">Admin: add a vehicle by id to a player's garage</Command>
+    <Command name="gadminretrieve" permission="gadminretrieve">Admin: spawn a vehicle from a player's garage</Command>
+  </Commands>
+</Plugin>
