@@ -46,8 +46,15 @@ namespace VirtualGarage.Commands
                 return;
             }
 
+            if (vg.Conf.BlockStoreWithMountedStorage && VehicleSerializer.HasMountedStorage(vehicle))
+            {
+                vg.Err(caller, vg.MountedStorageMessage());
+                return;
+            }
+
             // Starts a stand-and-wait channel if the vehicle has a store time, else stores instantly.
-            vg.BeginStore(caller, player, name, vehicle);
+            // Admins bypass the locked-by-other guard.
+            vg.BeginStore(caller, player, name, vehicle, player.IsAdmin);
         }
     }
 }

@@ -19,7 +19,7 @@ namespace VirtualGarage
         public IGarageStore Store { get; private set; }
         public VirtualGarageConfiguration Conf => Configuration.Instance;
 
-        public enum StoreOutcome { Ok, NameExists, LimitReached, AssetMissing, DbError }
+        public enum StoreOutcome { Ok, NameExists, LimitReached, AssetMissing, DbError, NotOwner, HasMountedStorage }
         public enum RetrieveOutcome { Ok, NotFound, AssetMissing, DbError }
 
         /// <summary>Active "stand and wait" store channels, keyed by player.</summary>
@@ -35,6 +35,7 @@ namespace VirtualGarage
             public float Remaining;
             public float TickAccumulator;
             public Vector3 StartPosition;
+            public bool BypassLock;     // admin started the store -> skip the locked-by-other guard
         }
 
         protected override void Load()
@@ -133,7 +134,7 @@ namespace VirtualGarage
         /// Player-facing /gadd entry point. Starts a stand-and-wait channel if this vehicle has a
         /// store time, otherwise stores immediately. Handles all messaging.
         /// </summary>
-        public void BeginStore(IRocketPlayer caller, UnturnedPlayer player, string name, InteractableVehicle vehicle)
+        public void BeginStore(IRocketPlayer caller, UnturnedPlayer player, string name, InteractableVehicle vehicle, bool bypassLock)
         {
             ulong ownerId = player.CSteamID.m_SteamID;
 
@@ -160,7 +161,7 @@ namespace VirtualGarage
             float seconds = GetStoreSeconds(vehicle.id);
             if (seconds <= 0f)
             {
-                FinishStore(caller, ownerId, name, vehicle);
+                FinishStore(caller, ownerId, name, vehicle, bypassLock);
                 return;
             }
 
@@ -178,20 +179,30 @@ namespace VirtualGarage
                 Vehicle = vehicle,
                 Remaining = seconds,
                 TickAccumulator = 0f,
-                StartPosition = player.Position
+                StartPosition = player.Position,
+                BypassLock = bypassLock
             };
             Info(caller, string.Format(Conf.MsgStoreStarting, Mathf.CeilToInt(seconds)));
         }
 
-        private void FinishStore(IRocketPlayer caller, ulong ownerId, string name, InteractableVehicle vehicle)
+        private void FinishStore(IRocketPlayer caller, ulong ownerId, string name, InteractableVehicle vehicle, bool bypassLock)
         {
-            switch (StoreVehicle(ownerId, name, vehicle))
+            switch (StoreVehicle(ownerId, name, vehicle, bypassLock))
             {
                 case StoreOutcome.Ok: Ok(caller, string.Format(Conf.MsgStored, name)); break;
                 case StoreOutcome.NameExists: Err(caller, string.Format(Conf.MsgNameExists, name)); break;
                 case StoreOutcome.LimitReached: Err(caller, string.Format(Conf.MsgLimitReached, Conf.MaxVehiclesPerPlayer)); break;
+                case StoreOutcome.NotOwner: Err(caller, Conf.MsgNotOwner); break;
+                case StoreOutcome.HasMountedStorage: Err(caller, MountedStorageMessage()); break;
                 default: Err(caller, Conf.MsgDbError); break;
             }
+        }
+
+        public string MountedStorageMessage()
+        {
+            return string.IsNullOrEmpty(Conf.MsgHasMountedStorage)
+                ? "This vehicle has a mounted safe/locker and cannot be stored | รถคันนี้มีตู้เซฟ/ตู้เก็บของติดอยู่ เก็บไม่ได้"
+                : Conf.MsgHasMountedStorage;
         }
 
         private void FixedUpdate()
@@ -236,7 +247,7 @@ namespace VirtualGarage
                 if (ch.Remaining <= 0f)
                 {
                     _channels.Remove(ch.Player.CSteamID);
-                    FinishStore(ch.Player, ch.OwnerId, ch.Name, ch.Vehicle);
+                    FinishStore(ch.Player, ch.OwnerId, ch.Name, ch.Vehicle, ch.BypassLock);
                 }
             }
         }
@@ -255,10 +266,20 @@ namespace VirtualGarage
             EffectManager.triggerEffect(parameters);
         }
 
-        public StoreOutcome StoreVehicle(ulong ownerId, string name, InteractableVehicle vehicle)
+        public StoreOutcome StoreVehicle(ulong ownerId, string name, InteractableVehicle vehicle, bool bypassLock)
         {
             try
             {
+                // Locked by someone else -> refuse (re-checked here so a vehicle locked DURING a
+                // stand-and-wait channel can't slip through). Admins bypass via bypassLock.
+                if (!bypassLock && vehicle.isLocked &&
+                    vehicle.lockedOwner.m_SteamID != 0 && vehicle.lockedOwner.m_SteamID != ownerId)
+                    return StoreOutcome.NotOwner;
+
+                // Optionally refuse vehicles carrying a mounted safe / locker / storage barricade.
+                if (Conf.BlockStoreWithMountedStorage && VehicleSerializer.HasMountedStorage(vehicle))
+                    return StoreOutcome.HasMountedStorage;
+
                 if (Store.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
                     return StoreOutcome.LimitReached;
                 if (Store.Exists(ownerId, name))
@@ -400,35 +421,73 @@ namespace VirtualGarage
             if (v == null)
                 return null;
 
-            v.tellFuel(sv.Fuel);
-            v.tellHealth(sv.Health);
-            if (v.usesBattery)
-                v.tellBatteryCharge(sv.Battery);
-            if (sv.SkinId != 0)
-                v.tellSkin(sv.SkinId, 0);
-            VehicleManager.sendVehicleTireAliveMask(v, sv.TireMask);
-            if (sv.Locked)
-                v.tellLocked(new CSteamID(sv.LockedOwner), new CSteamID(sv.LockedGroup), true);
-
+            // Trunk items can be restored immediately - the container exists as soon as the
+            // vehicle spawns and is not reset by vehicle initialization.
             if (Conf.SaveTrunkContents)
                 VehicleSerializer.RestoreTrunk(v, sv.TrunkBlob);
 
-            // Mounted barricades must be placed a moment AFTER the vehicle exists, otherwise
-            // the freshly-spawned vehicle isn't ready to parent them and they silently fail.
-            if (Conf.SaveVehicleDecorations && !string.IsNullOrEmpty(sv.BarricadeBlob))
-                StartCoroutine(RestoreDecorationsDelayed(v, sv.BarricadeBlob));
+            // Fuel / health / battery / tire / skin / lock + mounted barricades must be applied a
+            // moment AFTER the vehicle exists. A freshly-spawned vehicle re-initializes itself to
+            // FULL fuel/health/battery on its first frame(s), so setting these synchronously here
+            // gets overwritten and the vehicle returns at 100%. Defer until it is ready.
+            StartCoroutine(RestoreStateDelayed(v, sv));
 
             return v;
         }
 
-        private System.Collections.IEnumerator RestoreDecorationsDelayed(InteractableVehicle vehicle, string blob)
+        private System.Collections.IEnumerator RestoreStateDelayed(InteractableVehicle vehicle, StoredVehicle sv)
         {
             yield return new WaitForSeconds(0.5f);
             if (vehicle == null || vehicle.isDead)
                 yield break;
 
-            int restored = VehicleSerializer.RestoreBarricades(vehicle, blob);
-            Logger.Log("[VirtualGarage] Restored " + restored + " decoration(s) onto vehicle.");
+            // Apply persisted condition now that the vehicle has finished initializing.
+            // BOTH calls per stat are required, they do complementary halves:
+            //   vehicle.tell*            -> sets the authoritative server-side field (so fuel burn,
+            //                               and the state re-sync that happens when a player enters/
+            //                               exits, use the correct value) but does NOT broadcast.
+            //   VehicleManager.sendVehicle* -> broadcasts to clients so the dashboard gauges refresh
+            //                               immediately, but does NOT set the server field.
+            // Using only tell* leaves the gauge stuck at 100% until you drive; using only sendVehicle*
+            // shows the right value until you drive/exit, then it snaps back to 100%. Do both.
+            vehicle.tellFuel(sv.Fuel);
+            VehicleManager.sendVehicleFuel(vehicle, sv.Fuel);
+            vehicle.tellHealth(sv.Health);
+            VehicleManager.sendVehicleHealth(vehicle, sv.Health);
+            if (vehicle.usesBattery)
+            {
+                vehicle.tellBatteryCharge(sv.Battery);
+                VehicleManager.sendVehicleBatteryCharge(vehicle, sv.Battery);
+            }
+            VehicleManager.sendVehicleTireAliveMask(vehicle, sv.TireMask);
+            if (sv.SkinId != 0)
+                vehicle.tellSkin(sv.SkinId, 0);
+            if (sv.Locked)
+            {
+                CSteamID owner = new CSteamID(sv.LockedOwner);
+                CSteamID group = new CSteamID(sv.LockedGroup);
+                // Prefer the owner's CURRENT group so their current party can enter the retrieved
+                // vehicle (the saved group may be stale, e.g. they joined a new party).
+                try
+                {
+                    UnturnedPlayer op = UnturnedPlayer.FromCSteamID(owner);
+                    if (op != null && op.Player != null && op.Player.quests != null)
+                    {
+                        CSteamID g = op.Player.quests.groupID;
+                        if (g != CSteamID.Nil) group = g;
+                    }
+                }
+                catch { }
+                // ServerSetVehicleLock (NOT tellLocked) sets the field AND replicates, so the lock
+                // and its group are known to every client - otherwise party members can't enter.
+                VehicleManager.ServerSetVehicleLock(vehicle, owner, group, true);
+            }
+
+            if (Conf.SaveVehicleDecorations && !string.IsNullOrEmpty(sv.BarricadeBlob))
+            {
+                int restored = VehicleSerializer.RestoreBarricades(vehicle, sv.BarricadeBlob);
+                Logger.Log("[VirtualGarage] Restored " + restored + " decoration(s) onto vehicle.");
+            }
         }
 
         private static VehicleAsset ResolveVehicleAsset(StoredVehicle sv)

@@ -196,6 +196,18 @@ namespace VirtualGarage
             }
         }
 
+        /// <summary>True if the vehicle has at least one mounted storage barricade (safe / locker).</summary>
+        public static bool HasMountedStorage(InteractableVehicle vehicle)
+        {
+            if (vehicle == null)
+                return false;
+
+            foreach (BarricadeDrop drop in CollectVehicleBarricades(vehicle))
+                if (drop.interactable is InteractableStorage)
+                    return true;
+            return false;
+        }
+
         /// <summary>Gathers every barricade mounted on the vehicle, across all of its regions.</summary>
         private static List<BarricadeDrop> CollectVehicleBarricades(InteractableVehicle vehicle)
         {

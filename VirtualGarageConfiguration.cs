@@ -53,6 +53,10 @@ namespace VirtualGarage
         /// <summary>Allow storing a vehicle that still has players inside (they are ejected/destroyed with it).</summary>
         public bool AllowStoreWhileOccupied;
 
+        /// <summary>If true, vehicles with a mounted safe/locker/storage barricade CANNOT be stored.
+        /// Default false (existing behaviour: such vehicles can be stored, contents saved).</summary>
+        public bool BlockStoreWithMountedStorage;
+
         // --- Store channel (stand-and-wait before /gadd completes) ---
         /// <summary>Seconds to stand and wait before /gadd stores a vehicle that isn't listed below. 0 = instant.</summary>
         public float StoreChannelDefaultSeconds;
@@ -95,6 +99,7 @@ namespace VirtualGarage
         public string MsgStoreChanneling;
         public string MsgStoreCancelledMoved;
         public string MsgAlreadyStoring;
+        public string MsgHasMountedStorage;
 
         public void LoadDefaults()
         {
@@ -111,6 +116,7 @@ namespace VirtualGarage
             SaveTrunkContents = true;
             SaveVehicleDecorations = true;
             AllowStoreWhileOccupied = false;
+            BlockStoreWithMountedStorage = false;   // set true to forbid storing cars with a safe/locker
 
             StoreChannelDefaultSeconds = 0f;
             StoreChannelTimes = new List<VehicleStoreTime>
@@ -147,6 +153,7 @@ namespace VirtualGarage
             MsgStoreChanneling = "Storing... {0}s left | กำลังเก็บ... เหลือ {0} วิ";
             MsgStoreCancelledMoved = "Store cancelled - you moved | ยกเลิกการเก็บ เพราะคุณขยับ";
             MsgAlreadyStoring = "You are already storing a vehicle | คุณกำลังเก็บรถอยู่แล้ว";
+            MsgHasMountedStorage = "This vehicle has a mounted safe/locker and cannot be stored | รถคันนี้มีตู้เซฟ/ตู้เก็บของติดอยู่ เก็บไม่ได้";
         }
     }
 }

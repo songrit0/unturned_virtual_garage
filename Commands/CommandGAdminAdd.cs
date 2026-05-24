@@ -42,7 +42,8 @@ namespace VirtualGarage.Commands
                 return;
             }
 
-            switch (vg.StoreVehicle(steamId, name, vehicle))
+            // Admin command -> bypass the locked-by-other guard.
+            switch (vg.StoreVehicle(steamId, name, vehicle, true))
             {
                 case VirtualGarage.StoreOutcome.Ok:
                     vg.Ok(caller, string.Format(vg.Conf.MsgAdminStored, name, display));
@@ -52,6 +53,9 @@ namespace VirtualGarage.Commands
                     break;
                 case VirtualGarage.StoreOutcome.LimitReached:
                     vg.Err(caller, string.Format(vg.Conf.MsgLimitReached, vg.Conf.MaxVehiclesPerPlayer));
+                    break;
+                case VirtualGarage.StoreOutcome.HasMountedStorage:
+                    vg.Err(caller, vg.MountedStorageMessage());
                     break;
                 default:
                     vg.Err(caller, vg.Conf.MsgDbError);
