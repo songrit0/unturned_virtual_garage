@@ -4,14 +4,20 @@ using Rocket.API;
 
 namespace VirtualGarage
 {
-    /// <summary>Per-vehicle store channel time: <c>&lt;Vehicle Id="4125" Seconds="60" /&gt;</c></summary>
+    /// <summary>
+    /// Per-vehicle store channel time:
+    /// <c>&lt;VehicleStoreTime Id="4125" Seconds="60" disabled="false" /&gt;</c>
+    /// Set <c>disabled="true"</c> to forbid storing that vehicle id entirely.
+    /// </summary>
     public sealed class VehicleStoreTime
     {
         [XmlAttribute] public ushort Id;
         [XmlAttribute] public float Seconds;
+        [XmlAttribute("disabled")] public bool Disabled;
 
         public VehicleStoreTime() { }
         public VehicleStoreTime(ushort id, float seconds) { Id = id; Seconds = seconds; }
+        public VehicleStoreTime(ushort id, float seconds, bool disabled) { Id = id; Seconds = seconds; Disabled = disabled; }
     }
 
     /// <summary>
@@ -67,6 +73,9 @@ namespace VirtualGarage
         /// <summary>Sound effect played once/second while channeling a store (nearby players hear it). 0 = off.</summary>
         public ushort StoreChannelSoundEffectID;
 
+        /// <summary>Effect played at the vehicle position when a store completes successfully. 0 = off. Default: 128.</summary>
+        public ushort StoreCompleteEffectID;
+
         /// <summary>If the player moves further than this (metres) from where they started, the store cancels.</summary>
         public float StoreChannelMoveCancelDistance;
 
@@ -100,6 +109,7 @@ namespace VirtualGarage
         public string MsgStoreCancelledMoved;
         public string MsgAlreadyStoring;
         public string MsgHasMountedStorage;
+        public string MsgVehicleStoreDisabled;
 
         public void LoadDefaults()
         {
@@ -121,9 +131,11 @@ namespace VirtualGarage
             StoreChannelDefaultSeconds = 0f;
             StoreChannelTimes = new List<VehicleStoreTime>
             {
-                new VehicleStoreTime(4125, 60f)   // example: vehicle id 4125 takes 60s to store
+                new VehicleStoreTime(4125, 60f),                  // example: id 4125 takes 60s
+                new VehicleStoreTime(4129, 16f, disabled: true)   // example: id 4129 cannot be stored at all
             };
             StoreChannelSoundEffectID = 56;       // vanilla "Beep"
+            StoreCompleteEffectID = 128;          // played on successful store
             StoreChannelMoveCancelDistance = 2f;
 
             ColorSuccess = "green";
@@ -154,6 +166,7 @@ namespace VirtualGarage
             MsgStoreCancelledMoved = "Store cancelled - you moved | ยกเลิกการเก็บ เพราะคุณขยับ";
             MsgAlreadyStoring = "You are already storing a vehicle | คุณกำลังเก็บรถอยู่แล้ว";
             MsgHasMountedStorage = "This vehicle has a mounted safe/locker and cannot be stored | รถคันนี้มีตู้เซฟ/ตู้เก็บของติดอยู่ เก็บไม่ได้";
+            MsgVehicleStoreDisabled = "This vehicle cannot be stored in the garage | รถคันนี้ไม่สามารถเก็บเข้าอู่ได้";
         }
     }
 }

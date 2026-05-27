@@ -130,6 +130,17 @@ namespace VirtualGarage
             return Conf.StoreChannelDefaultSeconds;
         }
 
+        /// <summary>True if the config marks this vehicle id as not storable (Disabled="true").</summary>
+        public bool IsStoreDisabled(ushort vehicleId)
+        {
+            if (Conf.StoreChannelTimes == null)
+                return false;
+            foreach (VehicleStoreTime t in Conf.StoreChannelTimes)
+                if (t != null && t.Id == vehicleId && t.Disabled)
+                    return true;
+            return false;
+        }
+
         /// <summary>
         /// Player-facing /gadd entry point. Starts a stand-and-wait channel if this vehicle has a
         /// store time, otherwise stores immediately. Handles all messaging.
@@ -137,6 +148,15 @@ namespace VirtualGarage
         public void BeginStore(IRocketPlayer caller, UnturnedPlayer player, string name, InteractableVehicle vehicle, bool bypassLock)
         {
             ulong ownerId = player.CSteamID.m_SteamID;
+
+            // Blacklisted vehicle id -> reject before any wait or DB lookup.
+            if (IsStoreDisabled(vehicle.id))
+            {
+                Err(caller, string.IsNullOrEmpty(Conf.MsgVehicleStoreDisabled)
+                    ? "This vehicle cannot be stored in the garage | รถคันนี้ไม่สามารถเก็บเข้าอู่ได้"
+                    : Conf.MsgVehicleStoreDisabled);
+                return;
+            }
 
             // Fail fast on the cheap checks before making the player wait.
             try
@@ -187,9 +207,19 @@ namespace VirtualGarage
 
         private void FinishStore(IRocketPlayer caller, ulong ownerId, string name, InteractableVehicle vehicle, bool bypassLock)
         {
+            // Capture the vehicle position BEFORE StoreVehicle removes it from the world,
+            // so the "puff" effect plays at where the vehicle disappeared.
+            Vector3 effectPos = vehicle != null && vehicle.transform != null
+                ? vehicle.transform.position
+                : Vector3.zero;
+
             switch (StoreVehicle(ownerId, name, vehicle, bypassLock))
             {
-                case StoreOutcome.Ok: Ok(caller, string.Format(Conf.MsgStored, name)); break;
+                case StoreOutcome.Ok:
+                    Ok(caller, string.Format(Conf.MsgStored, name));
+                    if (Conf.StoreCompleteEffectID != 0 && effectPos != Vector3.zero)
+                        TriggerSound(Conf.StoreCompleteEffectID, effectPos);
+                    break;
                 case StoreOutcome.NameExists: Err(caller, string.Format(Conf.MsgNameExists, name)); break;
                 case StoreOutcome.LimitReached: Err(caller, string.Format(Conf.MsgLimitReached, Conf.MaxVehiclesPerPlayer)); break;
                 case StoreOutcome.NotOwner: Err(caller, Conf.MsgNotOwner); break;
