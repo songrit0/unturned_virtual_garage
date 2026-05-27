@@ -208,6 +208,26 @@ namespace VirtualGarage
             return false;
         }
 
+        /// <summary>
+        /// True if any mounted storage barricade on the vehicle currently contains at least one item.
+        /// An empty safe/locker returns false (so it's allowed to be stored).
+        /// </summary>
+        public static bool HasItemsInMountedStorage(InteractableVehicle vehicle)
+        {
+            if (vehicle == null)
+                return false;
+
+            foreach (BarricadeDrop drop in CollectVehicleBarricades(vehicle))
+            {
+                InteractableStorage storage = drop.interactable as InteractableStorage;
+                if (storage == null || storage.items == null)
+                    continue;
+                if (storage.items.getItemCount() > 0)
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>Gathers every barricade mounted on the vehicle, across all of its regions.</summary>
         private static List<BarricadeDrop> CollectVehicleBarricades(InteractableVehicle vehicle)
         {

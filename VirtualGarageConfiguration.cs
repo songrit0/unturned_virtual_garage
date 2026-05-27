@@ -63,6 +63,13 @@ namespace VirtualGarage
         /// Default false (existing behaviour: such vehicles can be stored, contents saved).</summary>
         public bool BlockStoreWithMountedStorage;
 
+        /// <summary>
+        /// If true, vehicles whose mounted safe/locker contains ANY items cannot be stored.
+        /// Empty safes/lockers are still allowed (use BlockStoreWithMountedStorage to block all).
+        /// Default true.
+        /// </summary>
+        public bool BlockStoreWithItemsInMountedStorage;
+
         // --- Store channel (stand-and-wait before /gadd completes) ---
         /// <summary>Seconds to stand and wait before /gadd stores a vehicle that isn't listed below. 0 = instant.</summary>
         public float StoreChannelDefaultSeconds;
@@ -110,6 +117,7 @@ namespace VirtualGarage
         public string MsgAlreadyStoring;
         public string MsgHasMountedStorage;
         public string MsgVehicleStoreDisabled;
+        public string MsgMountedStorageHasItems;
 
         public void LoadDefaults()
         {
@@ -126,7 +134,8 @@ namespace VirtualGarage
             SaveTrunkContents = true;
             SaveVehicleDecorations = true;
             AllowStoreWhileOccupied = false;
-            BlockStoreWithMountedStorage = false;   // set true to forbid storing cars with a safe/locker
+            BlockStoreWithMountedStorage = false;        // set true to forbid storing cars with any safe/locker (even empty)
+            BlockStoreWithItemsInMountedStorage = true;  // forbid storing only when a mounted safe/locker has items inside
 
             StoreChannelDefaultSeconds = 0f;
             StoreChannelTimes = new List<VehicleStoreTime>
@@ -167,6 +176,7 @@ namespace VirtualGarage
             MsgAlreadyStoring = "You are already storing a vehicle | คุณกำลังเก็บรถอยู่แล้ว";
             MsgHasMountedStorage = "This vehicle has a mounted safe/locker and cannot be stored | รถคันนี้มีตู้เซฟ/ตู้เก็บของติดอยู่ เก็บไม่ได้";
             MsgVehicleStoreDisabled = "This vehicle cannot be stored in the garage | รถคันนี้ไม่สามารถเก็บเข้าอู่ได้";
+            MsgMountedStorageHasItems = "Empty the mounted safe/locker before storing | กรุณานำของในตู้เซฟ/ตู้เก็บของออกก่อน";
         }
     }
 }

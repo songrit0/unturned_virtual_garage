@@ -19,7 +19,7 @@ namespace VirtualGarage
         public IGarageStore Store { get; private set; }
         public VirtualGarageConfiguration Conf => Configuration.Instance;
 
-        public enum StoreOutcome { Ok, NameExists, LimitReached, AssetMissing, DbError, NotOwner, HasMountedStorage }
+        public enum StoreOutcome { Ok, NameExists, LimitReached, AssetMissing, DbError, NotOwner, HasMountedStorage, MountedStorageHasItems }
         public enum RetrieveOutcome { Ok, NotFound, AssetMissing, DbError }
 
         /// <summary>Active "stand and wait" store channels, keyed by player.</summary>
@@ -224,6 +224,11 @@ namespace VirtualGarage
                 case StoreOutcome.LimitReached: Err(caller, string.Format(Conf.MsgLimitReached, Conf.MaxVehiclesPerPlayer)); break;
                 case StoreOutcome.NotOwner: Err(caller, Conf.MsgNotOwner); break;
                 case StoreOutcome.HasMountedStorage: Err(caller, MountedStorageMessage()); break;
+                case StoreOutcome.MountedStorageHasItems:
+                    Err(caller, string.IsNullOrEmpty(Conf.MsgMountedStorageHasItems)
+                        ? "Empty the mounted safe/locker before storing | กรุณานำของในตู้เซฟ/ตู้เก็บของออกก่อน"
+                        : Conf.MsgMountedStorageHasItems);
+                    break;
                 default: Err(caller, Conf.MsgDbError); break;
             }
         }
@@ -309,6 +314,10 @@ namespace VirtualGarage
                 // Optionally refuse vehicles carrying a mounted safe / locker / storage barricade.
                 if (Conf.BlockStoreWithMountedStorage && VehicleSerializer.HasMountedStorage(vehicle))
                     return StoreOutcome.HasMountedStorage;
+
+                // Block only if a mounted safe/locker currently has items (empty ones are fine).
+                if (Conf.BlockStoreWithItemsInMountedStorage && VehicleSerializer.HasItemsInMountedStorage(vehicle))
+                    return StoreOutcome.MountedStorageHasItems;
 
                 if (Store.Count(ownerId) >= Conf.MaxVehiclesPerPlayer)
                     return StoreOutcome.LimitReached;

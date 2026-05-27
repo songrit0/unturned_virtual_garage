@@ -57,6 +57,11 @@ namespace VirtualGarage.Commands
                 case VirtualGarage.StoreOutcome.HasMountedStorage:
                     vg.Err(caller, vg.MountedStorageMessage());
                     break;
+                case VirtualGarage.StoreOutcome.MountedStorageHasItems:
+                    vg.Err(caller, string.IsNullOrEmpty(vg.Conf.MsgMountedStorageHasItems)
+                        ? "Empty the mounted safe/locker before storing | กรุณานำของในตู้เซฟ/ตู้เก็บของออกก่อน"
+                        : vg.Conf.MsgMountedStorageHasItems);
+                    break;
                 default:
                     vg.Err(caller, vg.Conf.MsgDbError);
                     break;
